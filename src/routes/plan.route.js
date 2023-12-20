@@ -2,16 +2,19 @@ const express = require('express');
 const {
     planController
 } = require('../controllers');
+const auth = require('../middlewares/auth');
 
 const router = express.Router();
 
 router
     .route('/')
-    .post(planController.createPlan);
+    .post(auth, planController.createPlan);
 
 router
     .route('/:objectId')
-    .get(planController.getPlan)
-    .delete(planController.deletePlan)
+    .get(auth, planController.getPlan)
+    .delete(auth, planController.deletePlan)
+    .put(auth, planController.putPlan)
+    .patch(auth, planController.patchPlan)
 
 module.exports = router;

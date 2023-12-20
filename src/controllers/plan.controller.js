@@ -55,7 +55,7 @@ const getPlan = async (req, res) => {
         return res.status(status.OK).send(plan);
     } catch (error) {
         return res.status(status.UNAUTHORIZED).send({
-            message: "Bad Request or Unauthorised"
+            message: "Something went wrong!!"
         });
     }
 }
@@ -110,8 +110,9 @@ const createPlan = async (req, res) => {
             objectId: planJSON.objectId
         })
     } catch (error) {
+        console.log(error);
         return res.status(status.UNAUTHORIZED).send({
-            message: "Bad Request or Unauthorised"
+            message: "Something went wrong!!"
         });
     }
 }
@@ -141,22 +142,6 @@ const deletePlan = async (req, res) => {
             });
         }
 
-        // Retrieve the eTag
-        // const eTag = await getETag(KEY);
-
-        // // Check the If-Match header against the eTag
-        // const requestETag = req.headers['if-match'];
-        // // console.log("HEADERS", req.headers);
-        // // console.log("ETAG", requestETag);
-        // // console.log("etag", eTag);
-        // if (requestETag && requestETag !== eTag) {
-        //     //console.log(eTag);
-        //     //console.log("ETag mismatch.");
-        //     return res.status(412).send({  // 412 Precondition Failed
-        //         message: "ETag precondition failed."
-        //     });
-        // }
-
         console.log("Deleting plan...");
         await deleteSavedPlan(KEY);
         console.log("Plan Deleted successfully!!");
@@ -166,15 +151,178 @@ const deletePlan = async (req, res) => {
             objectId
         })
     } catch (error) {
-        console.error("Error encountered:", error);
         return res.status(status.UNAUTHORIZED).send({
-            message: "Bad Request or Unauthorised"
+            message: "Something went wrong!!"
         });
     }
 }
 
+const putPlan = async (req, res) => {
+    try {
+        const {
+            objectId
+        } = req.params;
+        const planJSON = req.body;
+
+        console.log("Executing the PUT method.")
+
+        // create key in the format - <type>_<objectId>
+        const KEY = `${config.PLAN_TYPE}_${objectId}`;
+
+        console.log(`Key to deal with: ${KEY}`);
+
+        // Check if the KEY is present in the database(redis)
+        const isKeyValid = await ifKeyExists(KEY);
+
+        // check for valid objectId
+        if (!isKeyValid) {
+            console.log(`${KEY}: not valid!`)
+            return res.status(status.NOT_FOUND).send({
+                message: `Invalid ObjectId! - ${objectId}`,
+                value: objectId,
+                type: "Invalid"
+            });
+        }
+
+        // If invalid body
+        if (!!!planJSON) {
+            return res.status(status.BAD_REQUEST).send({
+                message: "Invalid body!",
+                type: "Invalid"
+            });
+        }
+
+        console.log("Validating JSON body")
+        const isValidSchema = await isValidJSONSchema(planJSON, PLAN_SCHEMA);
+
+        if (isValidSchema?.error) {
+            console.log("Invalid JSON");
+            return res.status(status.BAD_REQUEST).send({
+                message: "Invalid Schema!",
+                type: "Invalid",
+                ...isValidSchema?.data
+            })
+        }
+
+        console.log("Get ETag and check for If-Match")
+        const urlETag = req.headers['if-match'] || [];
+        if (urlETag && !urlETag.length) {
+            return res.status(status.NOT_FOUND).send({
+                message: "Etag not provided!"
+            });
+        }
+
+        const eTag = await getETag(KEY);
+
+        if (urlETag !== eTag) {
+            res.setHeader('ETag', eTag)
+            return res.status(status.PRECONDITION_FAILED).send();
+        }
+
+        await deleteSavedPlan(KEY);
+        console.log("Create new ETag");
+        await createSavePlan(KEY, planJSON);
+        const eTagNew = generateETag(KEY, planJSON);
+
+        console.log("Saved successfully!!");
+        console.log("Get Saved plan");
+        const plan = await getSavedPlan(KEY);
+        res.setHeader('ETag', eTagNew);
+        return res.status(status.OK).send(plan);
+    } catch (error) {
+        console.log(JSON.stringify(error))
+        return res.status(status.UNAUTHORIZED).send({
+            message: "Something went wrong!!"
+        });
+    }
+}
+
+const patchPlan = async (req, res) => {
+    try {
+        const {
+            objectId
+        } = req.params;
+        const planJSON = req.body;
+
+        console.log("Executing the PATCH method.")
+
+        // create key in the format - <type>_<objectId>
+        const KEY = `${config.PLAN_TYPE}_${objectId}`;
+
+        console.log(`Key to deal with: ${KEY}`);
+
+        // Check if the KEY is present in the database(redis)
+        const isKeyValid = await ifKeyExists(KEY);
+
+        // check for valid objectId
+        if (!isKeyValid) {
+            console.log(`${KEY}: not valid!`)
+            return res.status(status.NOT_FOUND).send({
+                message: `Invalid ObjectId! - ${objectId}`,
+                value: objectId,
+                type: "Invalid"
+            });
+        }
+
+        // If invalid body
+        if (!!!planJSON) {
+            return res.status(status.BAD_REQUEST).send({
+                message: "Invalid body!",
+                type: "Invalid"
+            });
+        }
+
+        console.log("Validating JSON body")
+        const isValidSchema = await isValidJSONSchema(planJSON, PLAN_SCHEMA);
+
+        if (isValidSchema?.error) {
+            console.log("Invalid JSON");
+            return res.status(status.BAD_REQUEST).send({
+                message: "Invalid Schema!",
+                type: "Invalid",
+                ...isValidSchema?.data
+            })
+        }
+
+        console.log("Get ETag and check for If-Match")
+        const urlETag = req.headers['if-match'] || [];
+        if (urlETag && !urlETag.length) {
+            return res.status(status.NOT_FOUND).send({
+                message: "Etag not provided!"
+            });
+        }
+
+        const eTag = await getETag(KEY);
+
+        if (urlETag !== eTag) {
+            res.setHeader('ETag', eTag)
+            return res.status(status.PRECONDITION_FAILED).send();
+        }
+
+        console.log("Create new ETag 302");
+        await createSavePlan(KEY, planJSON);
+        console.log("Create new ETag 304");
+        const eTagNew = generateETag(KEY, planJSON);
+        console.log("Create new ETag 306");
+
+        console.log("Saved successfully!!");
+        console.log("Get Saved plan");
+        const plan = await getSavedPlan(KEY);
+        res.setHeader('ETag', eTagNew);
+        return res.status(status.OK).send(plan);
+    } catch (error) {
+        //console.log(JSON.stringify(error))
+        return res.status(status.INTERNAL_SERVER_ERROR).send({
+            message: error.message
+        });
+    }
+}
+
+
 module.exports = {
     getPlan,
     createPlan,
-    deletePlan
+    deletePlan,
+    putPlan,
+    patchPlan
 }

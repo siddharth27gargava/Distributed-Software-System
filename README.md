@@ -1,13 +1,15 @@
-# Distributed-Software-System: Demo-01
+# INFO-7255: Adv Big Data Indexing Techniques
 
-The REST APIs are designed to handle structured data in JSON format. It supports CRUD operations with a focus on Create, Read, and Delete functionalities. API is built with robust validation mechanisms and adheres to RESTful principles.
+## Distributed-Software-Systems: Demo-02
+
+This REST API is a versatile and secure solution designed to handle structured JSON data. It supports a comprehensive range of CRUD operations, including advanced features like patch support and robust validation. The API is built with a focus on conditional operations and secure data handling.
 
 ## Features
-- Support for CRUD operations (Create, Read, Delete).
-- JSON Schema validation for incoming payloads.
-- Conditional Read based on data change status.
-- Data storage in a key-value store.
-- RESTful endpoints with clear URIs and appropriate HTTP status codes.
+- Supports CRUD operations: Create, Read, Update (with merge/patch support), and Delete.
+- Advanced conditional operations: Update if not changed, conditional read, and conditional write.
+- JSON Schema validation for data models.
+- Data storage in a key-value store for efficient data management.
+- Security mechanism using RS 256, with support for custom token generation.
 
 ## Setup
 1. Install the dependencies
@@ -20,6 +22,29 @@ The REST APIs are designed to handle structured data in JSON format. It supports
    ```
    npm start
    ```
+## Token Generation Security
+
+### Generating a Private and Public Key Pair
+
+1. **Generate the Key Pair**:
+   - Run the command: `openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:2048`
+   - Generate the public key from this private key using: `openssl rsa -pubout -in private_key.pem -out public_key.pem`
+   - Keep your private key secure and never expose it publicly.
+  
+2. **Key Storage**:
+   - Store the private key in a secure location on your server. It will be used to sign your tokens.
+   - The public key can be distributed to clients or services that need to verify the token's authenticity.
+
+### Generating Tokens
+
+1. **Token Creation**:
+   - Use a JWT (JSON Web Token) library to create a token.
+   - Include necessary claims in the token payload, such as the user's identity, token issuance time, and expiration time.
+   - Sign the token using your private key.
+
+2. **Token Verification**:
+   - When a client sends a token for authentication, use the public key to verify the token's signature.
+   - Ensure that the token is not expired and that the payload matches the expected format and values.
 
 ## Data Model
 The data model for this API is defined by the following JSON schema:
@@ -81,6 +106,9 @@ The data model for this API is defined by the following JSON schema:
 
 ## Data Storage
 The data is stored in a key-value store using Redis.
+
+> [!WARNING]
+> Never expose your private key. It should only be known to the server.
 
 ## License
 This project is licensed under the [MIT License](LICENSE)

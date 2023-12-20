@@ -21,12 +21,18 @@ client.on('error', (err) => {
 client.connect();
 
 const ifKeyExists = async (key) => {
+    //console.log("key_exist");
     const data = await client.exists(key);
+    console.log(data);
     return !!data;
 }
 
 const getETag = async (key) => {
     return await client.hGet(key, "eTag");
+}
+
+const getKeyType = async (key) => {
+    return await client.type(key);
 }
 
 const setETag = async (key, eTag) => {
@@ -60,6 +66,7 @@ const sMembers = async (key) => {
 module.exports = {
     ifKeyExists,
     getETag,
+    getKeyType,
     setETag,
     addSetValue,
     hSet,
