@@ -1,7 +1,6 @@
 const status = require('http-status');
 const {
-    createToken,
-    isValidateToken
+    createToken
 } = require("../services/jwt.service");
 
 const getToken = async (req, res) => {

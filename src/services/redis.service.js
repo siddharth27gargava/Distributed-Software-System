@@ -21,9 +21,7 @@ client.on('error', (err) => {
 client.connect();
 
 const ifKeyExists = async (key) => {
-    //console.log("key_exist");
     const data = await client.exists(key);
-    console.log(data);
     return !!data;
 }
 

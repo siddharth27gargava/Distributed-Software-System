@@ -6,13 +6,14 @@ const rootRoute = require('./root.route');
 const router = express.Router();
 
 const routes = [{
-    path: '/plan',
-    route: planRoute,
-},
-{
-    path: '/',
-    route: rootRoute
-}];
+        path: '/plan',
+        route: planRoute,
+    },
+    {
+        path: '/',
+        route: rootRoute
+    }
+];
 
 
 routes.forEach((route) => {

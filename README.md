@@ -1,27 +1,41 @@
 # INFO-7255: Adv Big Data Indexing Techniques
 
-## Distributed-Software-Systems: Demo-02
+## Distributed-Software-Systems: Demo-03
 
-This REST API is a versatile and secure solution designed to handle structured JSON data. It supports a comprehensive range of CRUD operations, including advanced features like patch support and robust validation. The API is built with a focus on conditional operations and secure data handling.
+This RESTful API project is a powerful and flexible solution, capable of handling structured JSON data with a comprehensive range of features. It supports CRUD operations, including advanced functionalities like PATCH support and cascaded delete. The API is designed with robust validation and security mechanisms, utilizing a JSON schema for data modeling, and integrates seamlessly with Elastic for search operations, including parent-child indexing.
 
 ## Features
-- Supports CRUD operations: Create, Read, Update (with merge/patch support), and Delete.
-- Advanced conditional operations: Update if not changed, conditional read, and conditional write.
-- JSON Schema validation for data models.
-- Data storage in a key-value store for efficient data management.
-- Security mechanism using RS 256, with support for custom token generation.
+- **Supports CRUD operations**: Full support for Create, Read, Update (with Patch support), and Delete (with cascaded delete).
+- **Advanced conditional operations**: Update if not changed, conditional read, and conditional write.
+- **JSON Schema validation** for data models.
+- Data storage in a key-value store (Redis) for efficient data management.
+- **Search Capabilities**: Leverages Elastic Search with support for join operations and parent-child indexing.
+- **Queueing Mechanism**: Efficient handling of requests and data processing.
+- **Security**: Robust security protocols to ensure data safety and integrity.
 
-## Setup
-1. Install the dependencies
+## Automated Setup
+
+To install all application dependencies [Elasticsearch, Kibana and RabbitMQ], use the `docker-compose.yml` file to deploy all application dependencies using `docker compose`.
+
+1. Create the cluster
    
    ```
-   npm install
+   docker compose up
    ```
-2. Start the server locally
+2. To delete the cluster and the network:
    
    ```
-   npm start
+   docker compose down
    ```
+3. The default username and password for RabbitMQ is defined in the `docker-compose.yml` file.
+   - default username: `guest`
+   - default password: `guest`
+  
+4. The following is a list of the endpoints for the dependencies being created in docker:
+   - Elasticsearch: http://localhost:9200
+   - Kibana: http://localhost:5610
+   - RabbitMQ: http://localhost:15672
+
 ## Token Generation Security
 
 ### Generating a Private and Public Key Pair

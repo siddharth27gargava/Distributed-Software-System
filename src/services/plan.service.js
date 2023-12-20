@@ -16,9 +16,9 @@ const getSavedPlan = async (key) => {
 }
 
 const createSavePlan = async (key, plan) => {
-    console.log("before convert to json");
+    console.log("Create new ETag - planservice - 1");
     await convertJSONToMap(plan);
-    console.log("after convert to json");
+    console.log("Create new ETag - planservice - 2");
     return getOrDeletePlanData(key, {}, false);
 }
 
@@ -45,6 +45,7 @@ const convertJSONToMap = async (json) => {
             map[redisKey] = valueMap
         }
     }
+
     return map
 }
 
@@ -88,6 +89,7 @@ const getOrDeletePlanData = async (redisKey, outputMap, isDelete) => {
             }
         } else {
             const newStr = key.substring(`${redisKey}_`.length);
+
             //changes
             if (keyType === 'set') {
                 const members = [...(await sMembers(key))];
@@ -123,13 +125,10 @@ const getOrDeletePlanData = async (redisKey, outputMap, isDelete) => {
                 console.error(`Unexpected key type ${keyType} for key ${key}`);
             }
 
-
         }
     }
-
     console.log(outputMap);
     return outputMap;
-    
 };
 
 const deleteSavedPlan = async (key) => {

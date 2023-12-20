@@ -5,8 +5,8 @@ const config = require("../../config/local.json");
 
 // PRIVATE and PUBLIC key
 let currentDir = __dirname
-const privateKEY = fs.readFileSync(path.join(currentDir, './../../private_key.pem'), 'utf8');
-const publicKEY = fs.readFileSync(path.join(currentDir, './../../public_key.pem'), 'utf8');
+const privateKEY = fs.readFileSync(path.join(currentDir, './../../private.key'), 'utf8');
+const publicKEY = fs.readFileSync(path.join(currentDir, './../../public.key'), 'utf8');
 
 const PAYLOAD_CONFIG = {
     user: "admin",
@@ -15,7 +15,7 @@ const PAYLOAD_CONFIG = {
 
 const JWT_CONFIG = {
     algorithm: "RS256",
-    expiresIn: 60 * 5 // expires in 5 minutes
+    expiresIn: 60 * 15 // expires in 15 minutes
 }
 const createToken = async (body = PAYLOAD_CONFIG) => {
     const token = await jwt.sign(body, privateKEY, JWT_CONFIG);

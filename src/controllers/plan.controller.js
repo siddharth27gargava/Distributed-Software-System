@@ -7,7 +7,7 @@ const config = require("../../config/local.json");
 const {
     isValidJSONSchema
 } = require('../services/jsonSchema.service');
-
+ 
 const PLAN_SCHEMA = require("../models/plan.model");
 const {
     createSavePlan,
@@ -15,21 +15,22 @@ const {
     deleteSavedPlan,
     generateETag
 } = require('../services/plan.service');
-
+const rabbit = require("../services/rabbitmq.service");
+ 
 const getPlan = async (req, res) => {
     console.log("Executing the GET method.");
     try {
         const {
             objectId
         } = req.params;
-
+ 
         // create key in the format - <type>_<objectId>
         const KEY = `${config.PLAN_TYPE}_${objectId}`;
-
+ 
         // Check if the KEY is present in the database(redis)
         const isKeyValid = await ifKeyExists(KEY);
         console.log(`Key to deal with: ${KEY}`);
-
+ 
         // check for valid objectId
         if (!isKeyValid) {
             console.log(`${KEY}: not valid!`)
@@ -39,14 +40,16 @@ const getPlan = async (req, res) => {
                 type: "Invalid"
             });
         }
-
+ 
         const eTag = await getETag(KEY);
-
-        const urlETag = req.headers['If-None-Match'];
-        if (!!urlETag && urlETag.equals(eTag)) {
+ 
+        const urlETag = req.headers['if-none-match'];
+        console.log(urlETag);
+        console.log(eTag);
+        if (urlETag == eTag) {
             console.log(`${eTag}: ETag present.`);
             res.setHeader('ETag', eTag);
-            return res.status(status.NOT_MODIFIED);
+            return res.status(status.NOT_MODIFIED).send();
         }
         console.log("Saving Plan...");
         const plan = await getSavedPlan(KEY);
@@ -59,7 +62,7 @@ const getPlan = async (req, res) => {
         });
     }
 }
-
+ 
 const createPlan = async (req, res) => {
     console.log("Executing the POST method.");
     try {
@@ -70,10 +73,10 @@ const createPlan = async (req, res) => {
                 type: "Invalid"
             });
         }
-
+ 
         console.log("Validating JSON body")
         const isValidSchema = await isValidJSONSchema(planJSON, PLAN_SCHEMA);
-
+ 
         if (isValidSchema?.error) {
             console.log("Invalid JSON");
             return res.status(status.BAD_REQUEST).send({
@@ -82,11 +85,11 @@ const createPlan = async (req, res) => {
                 ...isValidSchema?.data
             })
         }
-
+ 
         console.log("Valid JSON");
         const KEY = `${config.PLAN_TYPE}_${planJSON.objectId}`;
-
-
+ 
+ 
         console.log(`Checking for ${KEY} validation!`)
         const isKeyValid = await ifKeyExists(KEY);
         if (isKeyValid) {
@@ -98,40 +101,46 @@ const createPlan = async (req, res) => {
         }
         console.log("Creating plan..")
         await createSavePlan(KEY, planJSON);
-        console.log("Plan created");
         const eTag = generateETag(KEY, planJSON);
-        console.log("etag generated");
+ 
+        console.log("sending message to queue....")
+        // Send Message to Queue for Indexing
+        const message = {
+            operation: "STORE",
+            body: planJSON,
+        }
+        rabbit.producer(message);
+ 
         console.log(`${planJSON.objectId}: Plan created successfully!`);
-
+ 
         res.setHeader('ETag', eTag);
-
+ 
         return res.status(status.OK).send({
             message: "Plan created successfully",
             objectId: planJSON.objectId
         })
     } catch (error) {
-        console.log(error);
         return res.status(status.UNAUTHORIZED).send({
             message: "Something went wrong!!"
         });
     }
 }
-
+ 
 const deletePlan = async (req, res) => {
     try {
         const {
             objectId
         } = req.params;
         console.log("Executing the DELETE method.")
-
+ 
         // create key in the format - <type>_<objectId>
         const KEY = `${config.PLAN_TYPE}_${objectId}`;
-
+ 
         console.log(`Key to deal with: ${KEY}`);
-
+ 
         // Check if the KEY is present in the database(redis)
         const isKeyValid = await ifKeyExists(KEY);
-
+ 
         // check for valid objectId
         if (!isKeyValid) {
             console.log(`${KEY}: not valid!`)
@@ -141,39 +150,63 @@ const deletePlan = async (req, res) => {
                 type: "Invalid"
             });
         }
-
+        console.log("Get ETag and check for If-Match")
+        const urlETag = req.headers['if-match'] || [];
+        if (urlETag && !urlETag.length) {
+            return res.status(status.NOT_FOUND).send({
+                message: "Etag not provided!"
+            });
+        }
+ 
+        const eTag = await getETag(KEY);
+ 
+        if (urlETag !== eTag) {
+            res.setHeader('ETag', eTag)
+            return res.status(status.PRECONDITION_FAILED).send();
+        }
+        console.log("sending message to queue....")
+ 
+        const oldPlan = await getSavedPlan(KEY);
+        // Send Message to Queue for Indexing
+        const message = {
+            operation: "DELETE",
+            body: oldPlan
+        }
+        rabbit.producer(message);
+ 
         console.log("Deleting plan...");
         await deleteSavedPlan(KEY);
         console.log("Plan Deleted successfully!!");
-
-        return res.status(status.OK).send({
+ 
+        return res.status(204).send({
             message: "Plan deleted successfully",
-            objectId
+            // objectId
         })
     } catch (error) {
+        console.log("ERRRRR", error);
         return res.status(status.UNAUTHORIZED).send({
             message: "Something went wrong!!"
         });
     }
 }
-
+ 
 const putPlan = async (req, res) => {
     try {
         const {
             objectId
         } = req.params;
         const planJSON = req.body;
-
+ 
         console.log("Executing the PUT method.")
-
+ 
         // create key in the format - <type>_<objectId>
         const KEY = `${config.PLAN_TYPE}_${objectId}`;
-
+ 
         console.log(`Key to deal with: ${KEY}`);
-
+ 
         // Check if the KEY is present in the database(redis)
         const isKeyValid = await ifKeyExists(KEY);
-
+ 
         // check for valid objectId
         if (!isKeyValid) {
             console.log(`${KEY}: not valid!`)
@@ -183,7 +216,7 @@ const putPlan = async (req, res) => {
                 type: "Invalid"
             });
         }
-
+ 
         // If invalid body
         if (!!!planJSON) {
             return res.status(status.BAD_REQUEST).send({
@@ -191,10 +224,10 @@ const putPlan = async (req, res) => {
                 type: "Invalid"
             });
         }
-
+ 
         console.log("Validating JSON body")
         const isValidSchema = await isValidJSONSchema(planJSON, PLAN_SCHEMA);
-
+ 
         if (isValidSchema?.error) {
             console.log("Invalid JSON");
             return res.status(status.BAD_REQUEST).send({
@@ -203,7 +236,7 @@ const putPlan = async (req, res) => {
                 ...isValidSchema?.data
             })
         }
-
+ 
         console.log("Get ETag and check for If-Match")
         const urlETag = req.headers['if-match'] || [];
         if (urlETag && !urlETag.length) {
@@ -211,24 +244,43 @@ const putPlan = async (req, res) => {
                 message: "Etag not provided!"
             });
         }
-
+ 
         const eTag = await getETag(KEY);
-
+ 
         if (urlETag !== eTag) {
             res.setHeader('ETag', eTag)
             return res.status(status.PRECONDITION_FAILED).send();
         }
-
+ 
+        const oldPlan = await getSavedPlan(KEY);
+        console.log("sending message to queue....")
+ 
+        // Send Message to Queue for Indexing
+        const message = {
+            operation: "DELETE",
+            body: oldPlan
+        }
+        rabbit.producer(message);
+ 
         await deleteSavedPlan(KEY);
+ 
         console.log("Create new ETag");
         await createSavePlan(KEY, planJSON);
         const eTagNew = generateETag(KEY, planJSON);
-
+ 
         console.log("Saved successfully!!");
         console.log("Get Saved plan");
         const plan = await getSavedPlan(KEY);
+        console.log(plan);
+        // Send Message to Queue for Indexing
+        const message1 = {
+            operation: "STORE",
+            body: plan
+        }
+        rabbit.producer(message1);
         res.setHeader('ETag', eTagNew);
-        return res.status(status.OK).send(plan);
+        console.log("////");
+        return res.status(status[204]).send(plan);
     } catch (error) {
         console.log(JSON.stringify(error))
         return res.status(status.UNAUTHORIZED).send({
@@ -236,24 +288,24 @@ const putPlan = async (req, res) => {
         });
     }
 }
-
+ 
 const patchPlan = async (req, res) => {
     try {
         const {
             objectId
         } = req.params;
         const planJSON = req.body;
-
+ 
         console.log("Executing the PATCH method.")
-
+ 
         // create key in the format - <type>_<objectId>
         const KEY = `${config.PLAN_TYPE}_${objectId}`;
-
+ 
         console.log(`Key to deal with: ${KEY}`);
-
+ 
         // Check if the KEY is present in the database(redis)
         const isKeyValid = await ifKeyExists(KEY);
-
+ 
         // check for valid objectId
         if (!isKeyValid) {
             console.log(`${KEY}: not valid!`)
@@ -263,7 +315,7 @@ const patchPlan = async (req, res) => {
                 type: "Invalid"
             });
         }
-
+ 
         // If invalid body
         if (!!!planJSON) {
             return res.status(status.BAD_REQUEST).send({
@@ -271,10 +323,10 @@ const patchPlan = async (req, res) => {
                 type: "Invalid"
             });
         }
-
+ 
         console.log("Validating JSON body")
         const isValidSchema = await isValidJSONSchema(planJSON, PLAN_SCHEMA);
-
+ 
         if (isValidSchema?.error) {
             console.log("Invalid JSON");
             return res.status(status.BAD_REQUEST).send({
@@ -283,7 +335,7 @@ const patchPlan = async (req, res) => {
                 ...isValidSchema?.data
             })
         }
-
+ 
         console.log("Get ETag and check for If-Match")
         const urlETag = req.headers['if-match'] || [];
         if (urlETag && !urlETag.length) {
@@ -291,34 +343,40 @@ const patchPlan = async (req, res) => {
                 message: "Etag not provided!"
             });
         }
-
+ 
         const eTag = await getETag(KEY);
-
+ 
         if (urlETag !== eTag) {
             res.setHeader('ETag', eTag)
             return res.status(status.PRECONDITION_FAILED).send();
         }
-
-        console.log("Create new ETag 302");
+ 
+        console.log("Create new ETag");
         await createSavePlan(KEY, planJSON);
-        console.log("Create new ETag 304");
+        console.log("Create new ETag ***** 2");
         const eTagNew = generateETag(KEY, planJSON);
-        console.log("Create new ETag 306");
-
+ 
         console.log("Saved successfully!!");
         console.log("Get Saved plan");
         const plan = await getSavedPlan(KEY);
+ 
+        // Send Message to Queue for Indexing
+        const message3 = {
+            operation: "STORE",
+            body: planJSON
+        }
+        rabbit.producer(message3);
+ 
         res.setHeader('ETag', eTagNew);
         return res.status(status.OK).send(plan);
     } catch (error) {
-        //console.log(JSON.stringify(error))
-        return res.status(status.INTERNAL_SERVER_ERROR).send({
-            message: error.message
+        console.log(error)
+        return res.status(status.BAD_REQUEST).send({
+            message: error
         });
     }
 }
-
-
+ 
 module.exports = {
     getPlan,
     createPlan,
